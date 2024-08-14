@@ -1,8 +1,8 @@
 use eframe::{App, Frame, Renderer};
 use eframe::epaint::Color32;
 use eframe::Theme::Light;
-use egui::{Align, ComboBox, Context, DragValue, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2};
-use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoints};
+use egui::{Align, ComboBox, Context, DragValue, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b};
+use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoint, PlotPoints};
 
 
 const BACKGROUND: Color32 = Color32::from_rgb(106, 49, 252);
@@ -72,6 +72,17 @@ impl TimeUnit {
             TimeUnit::Weeks => "week",
             TimeUnit::Months => "month",
             TimeUnit::Years => "year",
+        }
+    }
+    pub fn to_seconds(&self, value: f64) -> f64 {
+        match self {
+            TimeUnit::Seconds => value,
+            TimeUnit::Minutes => value * 60.0,
+            TimeUnit::Hours => value * 60.0 * 60.0,
+            TimeUnit::Days => value * 60.0 * 60.0 * 24.0,
+            TimeUnit::Weeks => value * 60.0 * 60.0 * 24.0 * 7.0,
+            TimeUnit::Months => value * 60.0 * 60.0 * 24.0 * 30.0,
+            TimeUnit::Years => value * 60.0 * 60.0 * 24.0 * 365.0,
         }
     }
 
@@ -289,16 +300,41 @@ impl App for MyApp {
                 });
             });
 
+            let label_fmt = |_s: &str, val: &PlotPoint| {
+                let label = if val.y < 0.016 {
+                    format!("{}s", TimeUnit::Hours.to_seconds(val.y))
+                } else if val.y < 1.0 {
+                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
+                    let minutes = seconds / 60;
+                    let remaining_seconds = seconds % 60;
+                    if remaining_seconds > 0 {
+                        format!("{}m {}s", minutes, remaining_seconds)
+                    } else {
+                        format!("{}m", minutes)
+                    }
+                } else if val.y < 24.0 {
+                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
+                    let hours = seconds / 60 / 60;
+                    let minutes = seconds / 60 % 60;
+                    format!("{}h {}m", hours, minutes)
+                } else {
+                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
+                    let days = seconds / 60 / 60 / self.conf_time_unit.number_of_hours_per_day as usize;
+                    let hours = seconds / 60 / 60 % self.conf_time_unit.number_of_hours_per_day as usize;
+                    format!("{}d {}h", days, hours)
+                };
+                format!("Day {}\n {}", val.x, label)
+            };
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let y_axes = vec![
                     AxisHints::new_y().label(self.y_axis_time_unit.plural())];
                 let mut plot = Plot::new("lines_demo")
                     .legend(Legend::default())
                     .custom_y_axes(y_axes)
+                    .label_formatter(label_fmt)
                     .show_axes(true)
-                    .show_grid(true);
-                plot = plot.coordinates_formatter(Corner::LeftBottom, CoordinatesFormatter::default());
-
+                    .show_grid(true)
+                    ;
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.before_line());
                     plot_ui.line(self.after_line());
