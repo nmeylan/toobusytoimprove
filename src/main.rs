@@ -75,27 +75,15 @@ impl TimeUnit {
         }
     }
 
-    pub fn to_seconds(&self, value: f64) -> f64 {
-        match self {
-            TimeUnit::Seconds => value,
-            TimeUnit::Minutes => value * 60.0,
-            TimeUnit::Hours => value * 60.0 * 60.0,
-            TimeUnit::Days => value * 60.0 * 60.0 * 24.0 ,
-            TimeUnit::Weeks => value * 60.0 * 60.0 * 24.0  * 7.0 ,
-            TimeUnit::Months => value * 60.0 * 60.0 * 24.0  * 30.0 ,
-            TimeUnit::Years => value * 60.0 * 60.0 * 24.0  * 365.0,
-        }
-    }
-
-    pub fn to_hours(&self, value: f64) -> f64 {
+    pub fn to_hours(&self, value: f64, conf_time_unit: &ConfTimeUnit) -> f64 {
         match self {
             TimeUnit::Seconds => value / 60.0 / 60.0,
             TimeUnit::Minutes => value / 60.0,
             TimeUnit::Hours => value,
-            TimeUnit::Days => value * 24.0,
-            TimeUnit::Weeks => value * 24.0 * 7.0 ,
-            TimeUnit::Months => value * 24.0 * 30.0 ,
-            TimeUnit::Years => value * 24.0 * 365.0,
+            TimeUnit::Days => value * conf_time_unit.number_of_hours_per_day as f64,
+            TimeUnit::Weeks => value * conf_time_unit.number_of_hours_per_day as f64 * conf_time_unit.number_of_day_per_week as f64,
+            TimeUnit::Months => value * conf_time_unit.number_of_hours_per_day as f64 * conf_time_unit.number_of_day_per_month as f64,
+            TimeUnit::Years => value * conf_time_unit.number_of_hours_per_day as f64 * conf_time_unit.number_of_day_per_month as f64 * 12.0,
         }
     }
 
@@ -106,8 +94,8 @@ impl TimeUnit {
             TimeUnit::Hours => value * conf_time_unit.number_of_hours_per_day as f64,
             TimeUnit::Days => value,
             TimeUnit::Weeks => value / conf_time_unit.number_of_day_per_week as f64,
-            TimeUnit::Months => value / (conf_time_unit.number_of_hours_per_day as f64 * conf_time_unit.number_of_day_per_month as f64),
-            TimeUnit::Years => value / (conf_time_unit.number_of_hours_per_day as f64 * conf_time_unit.number_of_day_per_month as f64 * 365.0),
+            TimeUnit::Months => value / (conf_time_unit.number_of_day_per_month as f64),
+            TimeUnit::Years => value / (conf_time_unit.number_of_day_per_month as f64 * 12.0),
         }
     }
 }
@@ -137,11 +125,11 @@ impl MyApp {
     pub fn new() -> Self {
         Self {
             before_taken_time: 2.0,
-            before_taken_time_unit: TimeUnit::Seconds,
-            after_taken_time: 0.0,
+            before_taken_time_unit: TimeUnit::Minutes,
+            after_taken_time: 10.0,
             after_taken_time_unit: TimeUnit::Seconds,
-            invest_taken_time: 0.0,
-            invest_taken_time_unit: TimeUnit::Minutes,
+            invest_taken_time: 1.0,
+            invest_taken_time_unit: TimeUnit::Hours,
             repeat_count: 10,
             repeat_count_time_unit: TimeUnit::Days,
             y_axis_time_unit: TimeUnit::Hours,
@@ -157,15 +145,27 @@ impl MyApp {
     }
 
     fn before_line(&self) -> Line {
-        let before_taken_time = 24.0_f64.max(self.before_taken_time_unit.to_hours(self.before_taken_time));
-        Line::new(PlotPoints::from_parametric_callback(
-            move |t| (t, before_taken_time * self.repeat_count_time_unit.to_times_per_days(self.repeat_count as f64, &self.conf_time_unit) * t),
-            0.0..=(self.scale_number_of_day as f64),
-            self.scale_number_of_day,
+        Line::new(PlotPoints::from_parametric_callback(|t| self.time_taken_per_day_in_hours(t, &self.before_taken_time_unit, self.before_taken_time),
+                                                       0.0..=(self.scale_number_of_day as f64),
+                                                       self.scale_number_of_day,
         ))
-            .color(Color32::from_rgb(100, 150, 250))
+            .color(Color32::from_rgb(255, 173, 0))
             .style(LineStyle::Solid)
             .name("before")
+    }
+    fn after_line(&self) -> Line {
+        Line::new(PlotPoints::from_parametric_callback(|t| self.time_taken_per_day_in_hours(t, &self.after_taken_time_unit, self.after_taken_time),
+                                                       0.0..=(self.scale_number_of_day as f64),
+                                                       self.scale_number_of_day,
+        ))
+            .color(Color32::from_rgb(75, 181, 67))
+            .style(LineStyle::Solid)
+            .name("after")
+    }
+
+    fn time_taken_per_day_in_hours(&self, t: f64, time_unit: &TimeUnit, time_taken: f64) -> (f64, f64) {
+        let input = time_unit.to_hours(time_taken, &self.conf_time_unit);
+        (t, 24.0_f64.min(input * self.repeat_count_time_unit.to_times_per_days(self.repeat_count as f64, &self.conf_time_unit)) * t)
     }
 }
 
@@ -301,6 +301,7 @@ impl App for MyApp {
 
                 plot.show(ui, |plot_ui| {
                     plot_ui.line(self.before_line());
+                    plot_ui.line(self.after_line());
                 })
             });
         });
@@ -334,4 +335,70 @@ fn styled_component<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> 
 }
 fn text(text: &str) -> RichText {
     RichText::new(text).size(14.0).line_height(Some(18.0))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{ConfTimeUnit, MyApp, TimeUnit};
+
+    #[test]
+    fn conversion_to_hours() {
+        let conf_time_unit = ConfTimeUnit {
+            number_of_hours_per_day: 8,
+            number_of_day_per_week: 5,
+            number_of_day_per_month: 22,
+        };
+        assert_eq!(TimeUnit::Seconds.to_hours(2.0, &conf_time_unit), 0.0005555555555555556);
+        assert_eq!(TimeUnit::Minutes.to_hours(2.0, &conf_time_unit), 0.03333333333333333);
+        assert_eq!(TimeUnit::Hours.to_hours(2.0, &conf_time_unit), 2.0);
+        assert_eq!(TimeUnit::Days.to_hours(2.0, &conf_time_unit), 16.0);
+        assert_eq!(TimeUnit::Weeks.to_hours(2.0, &conf_time_unit), 80.0);
+        assert_eq!(TimeUnit::Months.to_hours(2.0, &conf_time_unit), 352.0);
+        assert_eq!(TimeUnit::Years.to_hours(2.0, &conf_time_unit), 4224.0);
+    }
+
+    #[test]
+    fn conversion_time_per_day() {
+        let conf_time_unit = ConfTimeUnit {
+            number_of_hours_per_day: 8,
+            number_of_day_per_week: 5,
+            number_of_day_per_month: 30,
+        };
+        assert_eq!(TimeUnit::Seconds.to_times_per_days(10.0, &conf_time_unit), 288000.0);
+        assert_eq!(TimeUnit::Minutes.to_times_per_days(10.0, &conf_time_unit), 4800.0);
+        assert_eq!(TimeUnit::Hours.to_times_per_days(10.0, &conf_time_unit), 80.0);
+        assert_eq!(TimeUnit::Days.to_times_per_days(10.0, &conf_time_unit), 10.0);
+        assert_eq!(TimeUnit::Weeks.to_times_per_days(10.0, &conf_time_unit), 2.0);
+        assert_eq!(TimeUnit::Months.to_times_per_days(10.0, &conf_time_unit), 0.3333333333333333);
+        assert_eq!(TimeUnit::Years.to_times_per_days(10.0, &conf_time_unit), 0.027777777777777776);
+    }
+
+    #[test]
+    fn time_taken() {
+        let mut app = MyApp::new();
+        // I repeat this action 10 times per day and it takes me 40 seconds each time
+        app.repeat_count = 10;
+        app.repeat_count_time_unit = TimeUnit::Days;
+        app.before_taken_time = 40.0;
+        app.before_taken_time_unit = TimeUnit::Seconds;
+        assert_eq!(app.time_taken_per_day_in_hours(1.0, &app.before_taken_time_unit, app.before_taken_time).1.round(),
+                   TimeUnit::Seconds.to_hours(40.0 * 10.0 /* 10 time per day */, &app.conf_time_unit).round());
+
+        // I repeat this action 10 times per hour and it takes me 2 minutes each time
+        app.repeat_count = 10;
+        app.repeat_count_time_unit = TimeUnit::Hours;
+        app.before_taken_time = 2.0;
+        app.before_taken_time_unit = TimeUnit::Minutes;
+        assert_eq!(app.time_taken_per_day_in_hours(1.0, &app.before_taken_time_unit, app.before_taken_time).1.round(),
+                   TimeUnit::Minutes.to_hours(2.0 * 80.0 /*80 times per day (8 h * 10 time)*/, &app.conf_time_unit).round());
+
+        // I repeat this action 2 times per week and it takes me 4 hours each time
+        app.repeat_count = 2;
+        app.repeat_count_time_unit = TimeUnit::Weeks;
+        app.before_taken_time = 4.0;
+        app.before_taken_time_unit = TimeUnit::Hours;
+        assert_eq!(app.time_taken_per_day_in_hours(1.0, &app.before_taken_time_unit, app.before_taken_time).1.round(),
+                   TimeUnit::Hours.to_hours(4.0 * 0.4 /* 0.4 times per day (2 time / 5 day)*/, &app.conf_time_unit).round());
+    }
 }
