@@ -1,8 +1,9 @@
+use std::mem;
 use eframe::{App, Frame, Renderer};
 use eframe::epaint::Color32;
 use eframe::Theme::Light;
-use egui::{Align, ComboBox, Context, DragValue, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b};
-use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotPoint, PlotPoints};
+use egui::{Align, ComboBox, Context, DragValue, Id, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b};
+use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotMemory, PlotPoint, PlotPoints, PlotTransform};
 
 
 const BACKGROUND: Color32 = Color32::from_rgb(106, 49, 252);
@@ -178,6 +179,28 @@ impl MyApp {
         let input = time_unit.to_hours(time_taken, &self.conf_time_unit);
         (t, 24.0_f64.min(input * self.repeat_count_time_unit.to_times_per_days(self.repeat_count as f64, &self.conf_time_unit)) * t)
     }
+
+    fn label_hours_to_minutes(val: f64) -> String {
+        let seconds = TimeUnit::Hours.to_seconds(val) as usize;
+        let minutes = seconds / 60;
+        let remaining_seconds = seconds % 60;
+        if remaining_seconds > 0 {
+            format!("{}m {}s", minutes, remaining_seconds)
+        } else {
+            format!("{}m", minutes)
+        }
+    }
+
+    fn label_hours_to_hours_minutes(val: f64) -> String {
+        let seconds = TimeUnit::Hours.to_seconds(val) as usize;
+        let hours = seconds / 60 / 60;
+        let minutes = seconds / 60 % 60;
+        if minutes > 0 {
+            format!("{}h {}m", hours, minutes)
+        } else {
+            format!("{}h", hours)
+        }
+    }
 }
 
 impl App for MyApp {
@@ -304,41 +327,69 @@ impl App for MyApp {
                 let label = if val.y < 0.016 {
                     format!("{}s", TimeUnit::Hours.to_seconds(val.y))
                 } else if val.y < 1.0 {
-                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
-                    let minutes = seconds / 60;
-                    let remaining_seconds = seconds % 60;
-                    if remaining_seconds > 0 {
-                        format!("{}m {}s", minutes, remaining_seconds)
-                    } else {
-                        format!("{}m", minutes)
-                    }
+                    Self::label_hours_to_minutes(val.y)
                 } else if val.y < 24.0 {
-                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
-                    let hours = seconds / 60 / 60;
-                    let minutes = seconds / 60 % 60;
-                    format!("{}h {}m", hours, minutes)
+                    Self::label_hours_to_hours_minutes(val.y)
                 } else {
                     let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
-                    let days = seconds / 60 / 60 / self.conf_time_unit.number_of_hours_per_day as usize;
-                    let hours = seconds / 60 / 60 % self.conf_time_unit.number_of_hours_per_day as usize;
+                    let days = seconds / 60 / 60 / 24;
+                    let hours = seconds / 60 / 60 % 24;
                     format!("{}d {}h", days, hours)
                 };
-                format!("Day {}\n {}", val.x, label)
+                format!("Day {}\n {}", val.x.trunc(), label)
             };
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let y_axes = vec![
                     AxisHints::new_y().label(self.y_axis_time_unit.plural())];
-                let mut plot = Plot::new("lines_demo")
+                let id = Id::new("plot");
+                let mut plot = Plot::new("plot").id(id)
                     .legend(Legend::default())
                     .custom_y_axes(y_axes)
                     .label_formatter(label_fmt)
+                    .y_axis_formatter(|grid_mark, range| {
+                        if grid_mark.value == 0.0 {
+                            return format!("{}", grid_mark.value);
+                        }
+                        let label = if grid_mark.value < 0.016 {
+                            format!("{}s", TimeUnit::Hours.to_seconds(grid_mark.value))
+                        } else if grid_mark.value < 1.0 {
+                            Self::label_hours_to_minutes(grid_mark.value)
+                        } else {
+                            Self::label_hours_to_hours_minutes(grid_mark.value)
+                        };
+                        format!("{}", label)
+                    })
                     .show_axes(true)
                     .show_grid(true)
                     ;
-                plot.show(ui, |plot_ui| {
+
+                let mut response = plot.show(ui, |plot_ui| {
                     plot_ui.line(self.before_line());
                     plot_ui.line(self.after_line());
-                })
+                });
+                let mut plot_memory = PlotMemory::load(ctx, id);
+                let mut plot_memory = mem::take(&mut plot_memory).unwrap();
+                let mut transform = plot_memory.transform();
+                let mut changed = false;
+                if plot_memory.bounds().min()[0] < 0.0 {
+                    let mut bounds = plot_memory.bounds().clone();
+                    println!("delta x {}", plot_memory.bounds().min()[0].abs());
+                    bounds.translate((plot_memory.bounds().min()[0].abs(), 0.0));
+                    transform.set_bounds(bounds);
+                    changed = true;
+                }
+                if plot_memory.bounds().min()[1] < 0.0 {
+                    let mut bounds = plot_memory.bounds().clone();
+                    println!("delta y {}", plot_memory.bounds().min()[1].abs());
+                    bounds.translate((0.0, plot_memory.bounds().min()[1].abs()));
+                    transform.set_bounds(bounds);
+                    changed = true;
+                }
+                if changed {
+                    plot_memory.set_transform(transform);
+                    plot_memory.store(ctx, id);
+                    ctx.request_repaint();
+                }
             });
         });
     }
