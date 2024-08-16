@@ -315,6 +315,31 @@ impl App for MyApp {
                         });
                         (response_invest_time, response_invest_time_unit)
                     }).inner;
+                    ui.add_space(10.0);
+                    ui.collapsing(text("⚙ Configuration"), |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(text("I want to see a projection of next "));
+                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.scale_number_of_day).range(1.0..=10000.0).speed(1.0)) });
+                            ui.label(text(" days"));
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(text("1 day is "));
+                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.conf_time_unit.number_of_hours_per_day).range(1.0..=24.0).speed(1.0)) });
+                            ui.label(text(" hours"));
+                        });
+                        ui.add_space(5.0);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(text("1 week is "));
+                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.conf_time_unit.number_of_day_per_week).range(1.0..=7.0).speed(1.0)) });
+                            ui.label(text(" days"));
+                        });
+                        ui.add_space(5.0);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(text("1 month is "));
+                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.conf_time_unit.number_of_day_per_month).range(1.0..=31.0).speed(1.0)) });
+                            ui.label(text(" days"));
+                        });
+                    })
                 });
 
             egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
