@@ -271,7 +271,7 @@ impl App for MyApp {
                         (response_after_time, response_after_time_unit)
                     }).inner;
                     ui.add_space(5.0);
-                    let (response_invest_time, response_invest_time_unit, response_guestimation) = ui.horizontal_wrapped(|ui| {
+                    let (response_invest_time, response_invest_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text("For this I have to invest "));
                         let mut text_edit_invest_time = DragValue::new(&mut self.invest_taken_time).range(0.0..=360.0).speed(1.0);
                         let response_invest_time = styled_component(ui, |ui| { ui.add(text_edit_invest_time) });
@@ -284,18 +284,7 @@ impl App for MyApp {
                                     || ui.selectable_value(&mut self.invest_taken_time_unit, TimeUnit::Days, TimeUnit::Days.plural()).changed()
                             })
                         });
-                        ui.label(text(". Trust me I am "));
-                        let repeat_time_unit = ComboBox::new("guesstimation_level", "").selected_text(self.guesstimation_level.as_text());
-                        let response_guestimation = crate::styled_component(ui, |ui| {
-                            repeat_time_unit.show_ui(ui, |ui| {
-                                ui.selectable_value(&mut self.guesstimation_level, GuesstimationLevel::Good, GuesstimationLevel::Good.as_text()).changed()
-                                    || ui.selectable_value(&mut self.guesstimation_level, GuesstimationLevel::Mid, GuesstimationLevel::Mid.as_text()).changed()
-                                    || ui.selectable_value(&mut self.guesstimation_level, GuesstimationLevel::Bad, GuesstimationLevel::Bad.as_text()).changed()
-                                    || ui.selectable_value(&mut self.guesstimation_level, GuesstimationLevel::Random, GuesstimationLevel::Random.as_text()).changed()
-                            })
-                        });
-                        ui.label(text(" at guesstimation"));
-                        (response_invest_time, response_invest_time_unit, response_guestimation)
+                        (response_invest_time, response_invest_time_unit)
                     }).inner;
                 });
 
@@ -324,6 +313,9 @@ impl App for MyApp {
             });
 
             let label_fmt = |_s: &str, val: &PlotPoint| {
+                if val.y < 0.0 || val.x < 0.0 {
+                    return String::new()
+                }
                 let label = if val.y < 0.016 {
                     format!("{}s", TimeUnit::Hours.to_seconds(val.y))
                 } else if val.y < 1.0 {
@@ -347,6 +339,9 @@ impl App for MyApp {
                     .custom_y_axes(y_axes)
                     .label_formatter(label_fmt)
                     .y_axis_formatter(|grid_mark, range| {
+                        if grid_mark.value < 0.0 {
+                            return String::new();
+                        }
                         if grid_mark.value == 0.0 {
                             return format!("{}", grid_mark.value);
                         }
@@ -373,14 +368,12 @@ impl App for MyApp {
                 let mut changed = false;
                 if plot_memory.bounds().min()[0] < 0.0 {
                     let mut bounds = plot_memory.bounds().clone();
-                    println!("delta x {}", plot_memory.bounds().min()[0].abs());
                     bounds.translate((plot_memory.bounds().min()[0].abs(), 0.0));
                     transform.set_bounds(bounds);
                     changed = true;
                 }
                 if plot_memory.bounds().min()[1] < 0.0 {
                     let mut bounds = plot_memory.bounds().clone();
-                    println!("delta y {}", plot_memory.bounds().min()[1].abs());
                     bounds.translate((0.0, plot_memory.bounds().min()[1].abs()));
                     transform.set_bounds(bounds);
                     changed = true;
