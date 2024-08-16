@@ -212,31 +212,74 @@ impl MyApp {
         let a = self.time_taken_per_day_in_hours(x, &self.before_taken_time_unit, self.before_taken_time).1;
 
         let b1 = invest_time_in_hours;
-        let a1 = self.time_taken_per_day_in_hours(x , &self.after_taken_time_unit, self.after_taken_time).1;
+        let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1;
         let x_intersection = (b1 - b) / (a - a1);
-        println!("a: {}, a1: {}, b: {}, b1: {}, x_inter: {}", a, a1, b, b1, x_intersection);
+        // println!("a: {}, a1: {}, b: {}, b1: {}, x_inter: {}", a, a1, b, b1, x_intersection);
         (x_intersection, a * x_intersection + b)
     }
 
-    fn label_hours_to_minutes(val: f64) -> String {
+    fn label_hours_to_minutes(val: f64, short: bool) -> String {
         let seconds = TimeUnit::Hours.to_seconds(val) as usize;
         let minutes = seconds / 60;
         let remaining_seconds = seconds % 60;
         if remaining_seconds > 0 {
-            format!("{}m {}s", minutes, remaining_seconds)
+            if short {
+                format!("{}m {}s", minutes, remaining_seconds)
+            } else {
+                format!("{} minutes and {} seconds", minutes, remaining_seconds)
+            }
         } else {
-            format!("{}m", minutes)
+            if short {
+                format!("{}m", minutes)
+            } else {
+                format!("{} minutes", minutes)
+            }
         }
     }
 
-    fn label_hours_to_hours_minutes(val: f64) -> String {
+    fn label_hours_to_hours_minutes(val: f64, short: bool) -> String {
         let seconds = TimeUnit::Hours.to_seconds(val) as usize;
         let hours = seconds / 60 / 60;
         let minutes = seconds / 60 % 60;
         if minutes > 0 {
-            format!("{}h {}m", hours, minutes)
+            if short {
+                format!("{}h {}m", hours, minutes)
+            } else {
+                format!("{} hours and {} minutes", hours, minutes)
+            }
         } else {
-            format!("{}h", hours)
+            if short {
+                format!("{}h", hours)
+            } else {
+                format!("{} hours", hours)
+            }
+        }
+    }
+
+    fn label_hours_to_days_hours(val: f64, short: bool, conf: &ConfTimeUnit) -> String {
+        let seconds = TimeUnit::Hours.to_seconds(val) as usize;
+        let days = seconds / 60 / 60 / conf.number_of_hours_per_day as usize;
+        let hours = seconds / 60 / 60 % conf.number_of_hours_per_day as usize;
+        if short {
+            format!("{}d {}h", days, hours)
+        } else {
+            format!("{} days and {} hours", days, hours)
+        }
+    }
+
+    fn value_to_human_duration(val: f64, short: bool, conf: &ConfTimeUnit) -> String {
+        if val < 0.016 {
+            if short {
+                format!("{}s", TimeUnit::Hours.to_seconds(val))
+            } else {
+                format!("{} seconds", TimeUnit::Hours.to_seconds(val))
+            }
+        } else if val < 1.0 {
+            Self::label_hours_to_minutes(val, short)
+        } else if val < conf.number_of_hours_per_day as f64 {
+            Self::label_hours_to_hours_minutes(val, short)
+        } else {
+            Self::label_hours_to_days_hours(val, short, conf)
         }
     }
 }
@@ -354,36 +397,30 @@ impl App for MyApp {
                         });
                     })
                 });
-
+            let intersection = self.intersection(invest_time_in_hours, after_invest_time);
             egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("After");
-                    ui.label(RichText::new(format!("{}", self.scale_number_of_day)).strong());
-                    ui.label(RichText::new("days").strong());
-                    ui.label("you would save");
-                    ui.label(RichText::new("20").strong()); // heuristic for unit
-                    ui.label(RichText::new("hours").strong()); // heuristic for unit
-                    ui.label("You would have started to save time after");
-                    ui.label(RichText::new("1").strong()); // heuristic for unit
-                    ui.label(RichText::new("day").strong());
-                });
+                if intersection.1 <= 0.0 || intersection.0 <= 0.0 {
+                    ui.add(Label::new(RichText::heading(RichText::new("It looks like your optimisation will not be worth it, are you sure about data you enter?"))));
+                } else {
+                    let x = TimeUnit::Days.to_hours(intersection.0, &self.conf_time_unit);
+                   let roi = Self::value_to_human_duration(x, false, &self.conf_time_unit);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("After");
+                        ui.label(RichText::new(format!("{}", self.scale_number_of_day)).strong());
+                        ui.label(RichText::new("days").strong());
+                        ui.label("you would save");
+                        ui.label(RichText::new("20").strong()); // heuristic for unit
+                        ui.label(RichText::new("hours").strong()); // heuristic for unit
+                        ui.label("You will start to save time after");
+                        ui.label(RichText::new(roi).strong());
+                    });
+                }
             });
             let label_fmt = |_s: &str, val: &PlotPoint| {
                 if val.y < 0.0 || val.x < 0.0 {
                     return String::new();
                 }
-                let label = if val.y < 0.016 {
-                    format!("{}s", TimeUnit::Hours.to_seconds(val.y))
-                } else if val.y < 1.0 {
-                    Self::label_hours_to_minutes(val.y)
-                } else if val.y < self.conf_time_unit.number_of_hours_per_day as f64 {
-                    Self::label_hours_to_hours_minutes(val.y)
-                } else {
-                    let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
-                    let days = seconds / 60 / 60 / self.conf_time_unit.number_of_hours_per_day as usize;
-                    let hours = seconds / 60 / 60 % self.conf_time_unit.number_of_hours_per_day as usize;
-                    format!("{}d {}h", days, hours)
-                };
+                let label = Self::value_to_human_duration(val.y, true, &self.conf_time_unit);
                 format!("Day: {}\nSpent time: {}", val.x.trunc(), label)
             };
             egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -398,9 +435,9 @@ impl App for MyApp {
                         let label = if grid_mark.value < 0.016 {
                             format!("{}s", TimeUnit::Hours.to_seconds(grid_mark.value))
                         } else if grid_mark.value < 1.0 {
-                            Self::label_hours_to_minutes(grid_mark.value)
+                            Self::label_hours_to_minutes(grid_mark.value, true)
                         } else {
-                            Self::label_hours_to_hours_minutes(grid_mark.value)
+                            Self::label_hours_to_hours_minutes(grid_mark.value, true)
                         };
                         format!("{}", label)
                     })
@@ -409,7 +446,6 @@ impl App for MyApp {
                     .show_grid(true)
                     ;
 
-                let intersection = self.intersection(invest_time_in_hours, after_invest_time);
                 let mut response = plot.show(ui, |plot_ui| {
                     plot_ui.line(self.before_line());
                     plot_ui.line(self.invest_time_line(invest_time_in_hours, after_invest_time));
