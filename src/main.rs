@@ -7,6 +7,9 @@ use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle
 
 
 const BACKGROUND: Color32 = Color32::from_rgb(106, 49, 252);
+const BEFORE_COLOR: Color32 = Color32::from_rgb(255, 173, 0);
+const AFTER_COLOR: Color32 = Color32::from_rgb(75, 181, 67);
+const INVEST_COLOR: Color32 = Color32::from_rgb(6, 122, 199);
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -136,16 +139,16 @@ struct MyApp {
 impl MyApp {
     pub fn new() -> Self {
         Self {
-            before_taken_time: 2.0,
-            before_taken_time_unit: TimeUnit::Minutes,
+            before_taken_time: 40.0,
+            before_taken_time_unit: TimeUnit::Seconds,
             after_taken_time: 10.0,
             after_taken_time_unit: TimeUnit::Seconds,
-            invest_taken_time: 1.0,
+            invest_taken_time: 2.0,
             invest_taken_time_unit: TimeUnit::Hours,
-            repeat_count: 10,
-            repeat_count_time_unit: TimeUnit::Days,
+            repeat_count: 20,
+            repeat_count_time_unit: TimeUnit::Hours,
             y_axis_time_unit: TimeUnit::Hours,
-            scale_number_of_day: 30,
+            scale_number_of_day: 90,
 
             conf_time_unit: ConfTimeUnit {
                 number_of_hours_per_day: 8,
@@ -161,16 +164,40 @@ impl MyApp {
                                                        0.0..=(self.scale_number_of_day as f64),
                                                        self.scale_number_of_day,
         ))
-            .color(Color32::from_rgb(255, 173, 0))
+            .color(BEFORE_COLOR)
             .style(LineStyle::Solid)
             .name("before")
     }
-    fn after_line(&self) -> Line {
-        Line::new(PlotPoints::from_parametric_callback(|t| self.time_taken_per_day_in_hours(t, &self.after_taken_time_unit, self.after_taken_time),
-                                                       0.0..=(self.scale_number_of_day as f64),
+    fn invest_time_line(&self, invest_time_in_hours: f64) -> Line {
+        let days_needed = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
+        Line::new(PlotPoints::from_parametric_callback(|t| {
+            let hours_per_day = self.conf_time_unit.number_of_hours_per_day as f64;
+            let x = invest_time_in_hours / (hours_per_day * t);
+            let res = if x < 1.0 {
+                let hours_previous_days = (t - 1.0) * hours_per_day;
+                hours_previous_days + invest_time_in_hours - hours_previous_days
+            } else {
+                t * hours_per_day
+            };
+            (t, res)
+        },
+                                                       0.0..=(days_needed as f64),
+                                                       2.max(days_needed as usize),
+        ))
+            .color(INVEST_COLOR)
+            .style(LineStyle::Solid)
+            .name("invested time")
+    }
+    fn after_line(&self, invest_time_in_hours: f64) -> Line {
+        let after_start_at_day = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
+        Line::new(PlotPoints::from_parametric_callback(|t| {
+            let res = self.time_taken_per_day_in_hours(t - after_start_at_day, &self.after_taken_time_unit, self.after_taken_time);
+            (t, invest_time_in_hours + res.1)
+        },
+                                                       after_start_at_day..=(after_start_at_day + self.scale_number_of_day as f64),
                                                        self.scale_number_of_day,
         ))
-            .color(Color32::from_rgb(75, 181, 67))
+            .color(AFTER_COLOR)
             .style(LineStyle::Solid)
             .name("after")
     }
@@ -236,7 +263,7 @@ impl App for MyApp {
                     }).inner;
                     ui.add_space(5.0);
                     let (response_before_time, response_before_time_unit) = ui.horizontal_wrapped(|ui| {
-                        ui.label(text("Which takes "));
+                        ui.label(text_with_color("It takes ", BEFORE_COLOR));
 
                         let text_edit_before_time = DragValue::new(&mut self.before_taken_time).range(0.0..=360.0).speed(1.0);
                         let response_before_time = styled_component(ui, |ui| { ui.add(text_edit_before_time) });
@@ -255,7 +282,8 @@ impl App for MyApp {
                     }).inner;
                     ui.add_space(5.0);
                     let (response_after_time, response_after_time_unit) = ui.horizontal_wrapped(|ui| {
-                        ui.label(text("Optimizing/fixing the process would reduce this time to "));
+                        ui.label(text_with_color("Optimizing/fixing", AFTER_COLOR));
+                        ui.label(text(" the process would reduce this time to "));
 
                         let text_edit_after_time = DragValue::new(&mut self.after_taken_time).range(0.0..=360.0).speed(1.0);
                         let response_after_time = styled_component(ui, |ui| { ui.add(text_edit_after_time) });
@@ -272,7 +300,8 @@ impl App for MyApp {
                     }).inner;
                     ui.add_space(5.0);
                     let (response_invest_time, response_invest_time_unit) = ui.horizontal_wrapped(|ui| {
-                        ui.label(text("For this I have to invest "));
+                        ui.label(text("For this I have to "));
+                        ui.label(text_with_color("invest ", INVEST_COLOR));
                         let mut text_edit_invest_time = DragValue::new(&mut self.invest_taken_time).range(0.0..=360.0).speed(1.0);
                         let response_invest_time = styled_component(ui, |ui| { ui.add(text_edit_invest_time) });
                         ui.add_space(5.0);
@@ -314,36 +343,30 @@ impl App for MyApp {
 
             let label_fmt = |_s: &str, val: &PlotPoint| {
                 if val.y < 0.0 || val.x < 0.0 {
-                    return String::new()
+                    return String::new();
                 }
                 let label = if val.y < 0.016 {
                     format!("{}s", TimeUnit::Hours.to_seconds(val.y))
                 } else if val.y < 1.0 {
                     Self::label_hours_to_minutes(val.y)
-                } else if val.y < 24.0 {
+                } else if val.y < self.conf_time_unit.number_of_hours_per_day as f64 {
                     Self::label_hours_to_hours_minutes(val.y)
                 } else {
                     let seconds = TimeUnit::Hours.to_seconds(val.y) as usize;
-                    let days = seconds / 60 / 60 / 24;
-                    let hours = seconds / 60 / 60 % 24;
+                    let days = seconds / 60 / 60 / self.conf_time_unit.number_of_hours_per_day as usize;
+                    let hours = seconds / 60 / 60 % self.conf_time_unit.number_of_hours_per_day as usize;
                     format!("{}d {}h", days, hours)
                 };
-                format!("Day {}\n {}", val.x.trunc(), label)
+                format!("Day: {}\nSpent time: {}", val.x.trunc(), label)
             };
             egui::CentralPanel::default().show_inside(ui, |ui| {
-                let y_axes = vec![
-                    AxisHints::new_y().label(self.y_axis_time_unit.plural())];
                 let id = Id::new("plot");
                 let mut plot = Plot::new("plot").id(id)
-                    .legend(Legend::default())
-                    .custom_y_axes(y_axes)
+                    .custom_x_axes(vec![AxisHints::new_y().label("Day")])
                     .label_formatter(label_fmt)
                     .y_axis_formatter(|grid_mark, range| {
-                        if grid_mark.value < 0.0 {
+                        if grid_mark.value <= 0.0 {
                             return String::new();
-                        }
-                        if grid_mark.value == 0.0 {
-                            return format!("{}", grid_mark.value);
                         }
                         let label = if grid_mark.value < 0.016 {
                             format!("{}s", TimeUnit::Hours.to_seconds(grid_mark.value))
@@ -354,13 +377,16 @@ impl App for MyApp {
                         };
                         format!("{}", label)
                     })
+                    .legend(Legend::default().position(Corner::LeftTop))
                     .show_axes(true)
                     .show_grid(true)
                     ;
 
                 let mut response = plot.show(ui, |plot_ui| {
+                    let invest_time_in_hours = self.invest_taken_time_unit.to_hours(self.invest_taken_time, &self.conf_time_unit);
                     plot_ui.line(self.before_line());
-                    plot_ui.line(self.after_line());
+                    plot_ui.line(self.invest_time_line(invest_time_in_hours));
+                    plot_ui.line(self.after_line(invest_time_in_hours));
                 });
                 let mut plot_memory = PlotMemory::load(ctx, id);
                 let mut plot_memory = mem::take(&mut plot_memory).unwrap();
@@ -415,6 +441,9 @@ fn styled_component<R>(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui) -> R) -> 
 }
 fn text(text: &str) -> RichText {
     RichText::new(text).size(14.0).line_height(Some(18.0))
+}
+fn text_with_color(text: &str, color: Color32) -> RichText {
+    RichText::new(text).size(14.0).color(color).line_height(Some(18.0))
 }
 
 
