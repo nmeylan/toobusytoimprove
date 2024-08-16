@@ -3,7 +3,7 @@ use eframe::{App, Frame, Renderer};
 use eframe::epaint::Color32;
 use eframe::Theme::Light;
 use egui::{Align, ComboBox, Context, DragValue, Id, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b};
-use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotMemory, PlotPoint, PlotPoints, PlotTransform};
+use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotMemory, PlotPoint, PlotPoints, PlotTransform, Points};
 
 
 const BACKGROUND: Color32 = Color32::from_rgb(106, 49, 252);
@@ -168,8 +168,7 @@ impl MyApp {
             .style(LineStyle::Solid)
             .name("before")
     }
-    fn invest_time_line(&self, invest_time_in_hours: f64) -> Line {
-        let days_needed = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
+    fn invest_time_line(&self, invest_time_in_hours: f64, days_needed: f64) -> Line {
         Line::new(PlotPoints::from_parametric_callback(|t| {
             let hours_per_day = self.conf_time_unit.number_of_hours_per_day as f64;
             let x = invest_time_in_hours / (hours_per_day * t);
@@ -181,20 +180,19 @@ impl MyApp {
             };
             (t, res)
         },
-                                                       0.0..=(days_needed as f64),
+                                                       0.0..=(days_needed),
                                                        2.max(days_needed as usize),
         ))
             .color(INVEST_COLOR)
             .style(LineStyle::Solid)
             .name("invested time")
     }
-    fn after_line(&self, invest_time_in_hours: f64) -> Line {
-        let after_start_at_day = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
+    fn after_line(&self, invest_time_in_hours: f64, after_start_at_day: f64) -> Line {
         Line::new(PlotPoints::from_parametric_callback(|t| {
-            let res = self.time_taken_per_day_in_hours(t - after_start_at_day, &self.after_taken_time_unit, self.after_taken_time);
+            let res = self.time_taken_per_day_in_hours(t, &self.after_taken_time_unit, self.after_taken_time);
             (t, invest_time_in_hours + res.1)
         },
-                                                       after_start_at_day..=(after_start_at_day + self.scale_number_of_day as f64),
+                                                       (after_start_at_day)..=(after_start_at_day + self.scale_number_of_day as f64),
                                                        self.scale_number_of_day,
         ))
             .color(AFTER_COLOR)
@@ -205,6 +203,19 @@ impl MyApp {
     fn time_taken_per_day_in_hours(&self, t: f64, time_unit: &TimeUnit, time_taken: f64) -> (f64, f64) {
         let input = time_unit.to_hours(time_taken, &self.conf_time_unit);
         (t, 24.0_f64.min(input * self.repeat_count_time_unit.to_times_per_days(self.repeat_count as f64, &self.conf_time_unit)) * t)
+    }
+
+    fn intersection(&self, invest_time_in_hours: f64, after_invest_time: f64) -> (f64, f64) {
+        // La formule est bonne, mais à cause de la ligne 192: t - after_start_at_day, il y a un décallage, sans le - after_start_at_day c'est bon
+        let x = 1.0;
+        let b = 0.0;
+        let a = self.time_taken_per_day_in_hours(x, &self.before_taken_time_unit, self.before_taken_time).1;
+
+        let b1 = invest_time_in_hours;
+        let a1 = self.time_taken_per_day_in_hours(x , &self.after_taken_time_unit, self.after_taken_time).1;
+        let x_intersection = (b1 - b) / (a - a1);
+        println!("a: {}, a1: {}, b: {}, b1: {}, x_inter: {}", a, a1, b, b1, x_intersection);
+        (x_intersection, a * x_intersection + b)
     }
 
     fn label_hours_to_minutes(val: f64) -> String {
@@ -232,6 +243,8 @@ impl MyApp {
 
 impl App for MyApp {
     fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+        let invest_time_in_hours = self.invest_taken_time_unit.to_hours(self.invest_taken_time, &self.conf_time_unit);
+        let after_invest_time = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::TopBottomPanel::top("top")
                 .resizable(false)
@@ -265,7 +278,7 @@ impl App for MyApp {
                     let (response_before_time, response_before_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text_with_color("It takes ", BEFORE_COLOR));
 
-                        let text_edit_before_time = DragValue::new(&mut self.before_taken_time).range(0.0..=360.0).speed(1.0);
+                        let text_edit_before_time = DragValue::new(&mut self.before_taken_time).range(0.0..=10000.0).speed(1.0);
                         let response_before_time = styled_component(ui, |ui| { ui.add(text_edit_before_time) });
                         ui.add_space(5.0);
                         let before_time_unit = ComboBox::new("before_time_unit", "").selected_text(self.before_taken_time_unit.plural());
@@ -285,7 +298,7 @@ impl App for MyApp {
                         ui.label(text_with_color("Optimizing/fixing", AFTER_COLOR));
                         ui.label(text(" the process would reduce this time to "));
 
-                        let text_edit_after_time = DragValue::new(&mut self.after_taken_time).range(0.0..=360.0).speed(1.0);
+                        let text_edit_after_time = DragValue::new(&mut self.after_taken_time).range(0.0..=10000.0).speed(1.0);
                         let response_after_time = styled_component(ui, |ui| { ui.add(text_edit_after_time) });
                         ui.add_space(5.0);
                         let repeat_time_unit = ComboBox::new("after_time_unit", "").selected_text(self.after_taken_time_unit.plural());
@@ -302,7 +315,7 @@ impl App for MyApp {
                     let (response_invest_time, response_invest_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text("For this I have to "));
                         ui.label(text_with_color("invest ", INVEST_COLOR));
-                        let mut text_edit_invest_time = DragValue::new(&mut self.invest_taken_time).range(0.0..=360.0).speed(1.0);
+                        let mut text_edit_invest_time = DragValue::new(&mut self.invest_taken_time).range(0.0..=10000.0).speed(1.0);
                         let response_invest_time = styled_component(ui, |ui| { ui.add(text_edit_invest_time) });
                         ui.add_space(5.0);
                         let repeat_time_unit = ComboBox::new("invest_time_unit", "").selected_text(self.invest_taken_time_unit.plural());
@@ -319,7 +332,7 @@ impl App for MyApp {
                     ui.collapsing(text("⚙ Configuration"), |ui| {
                         ui.horizontal_wrapped(|ui| {
                             ui.label(text("I want to see a projection of next "));
-                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.scale_number_of_day).range(1.0..=10000.0).speed(1.0)) });
+                            styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.scale_number_of_day).range(1.0..=10000.0).speed(2.0)) });
                             ui.label(text(" days"));
                         });
                         ui.horizontal_wrapped(|ui| {
@@ -344,28 +357,17 @@ impl App for MyApp {
 
             egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label("Within");
-                    ui.label(RichText::new("90").strong()); // TODO time scale selectedd
-                    ui.label(RichText::new("days").strong()); // TODO  unit selected
-                    ui.label("you would have saved");
+                    ui.label("After");
+                    ui.label(RichText::new(format!("{}", self.scale_number_of_day)).strong());
+                    ui.label(RichText::new("days").strong());
+                    ui.label("you would save");
                     ui.label(RichText::new("20").strong()); // heuristic for unit
                     ui.label(RichText::new("hours").strong()); // heuristic for unit
                     ui.label("You would have started to save time after");
                     ui.label(RichText::new("1").strong()); // heuristic for unit
                     ui.label(RichText::new("day").strong());
                 });
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Congratulation").strong());
-                    ui.label(", within ");
-                    ui.label(RichText::new("90").strong()); // TODO time scale selectedd
-                    ui.label(RichText::new("days").strong()); // TODO  unit selected
-                    ui.label("you have wasted");
-                    ui.label(RichText::new("20").strong()); // heuristic for unit
-                    ui.label(RichText::new("hours").strong()); // heuristic for unit
-                    ui.label("because you were too busy to improve!");
-                });
             });
-
             let label_fmt = |_s: &str, val: &PlotPoint| {
                 if val.y < 0.0 || val.x < 0.0 {
                     return String::new();
@@ -407,11 +409,14 @@ impl App for MyApp {
                     .show_grid(true)
                     ;
 
+                let intersection = self.intersection(invest_time_in_hours, after_invest_time);
                 let mut response = plot.show(ui, |plot_ui| {
-                    let invest_time_in_hours = self.invest_taken_time_unit.to_hours(self.invest_taken_time, &self.conf_time_unit);
                     plot_ui.line(self.before_line());
-                    plot_ui.line(self.invest_time_line(invest_time_in_hours));
-                    plot_ui.line(self.after_line(invest_time_in_hours));
+                    plot_ui.line(self.invest_time_line(invest_time_in_hours, after_invest_time));
+                    plot_ui.line(self.after_line(invest_time_in_hours, after_invest_time));
+                    if intersection.1 > 0.0 && intersection.0 > 0.0 {
+                        plot_ui.points(Points::new(PlotPoints::from([intersection.0, intersection.1])).color(Color32::RED).radius(2.0))
+                    }
                 });
                 let mut plot_memory = PlotMemory::load(ctx, id);
                 let mut plot_memory = mem::take(&mut plot_memory).unwrap();
