@@ -261,9 +261,17 @@ impl MyApp {
         let days = seconds / 60 / 60 / conf.number_of_hours_per_day as usize;
         let hours = seconds / 60 / 60 % conf.number_of_hours_per_day as usize;
         if short {
-            format!("{}d {}h", days, hours)
+            if hours == 0 {
+                format!("{}d", days)
+            } else {
+                format!("{}d {}h", days, hours)
+            }
         } else {
-            format!("{} days and {} hours", days, hours)
+            if hours == 0 {
+                format!("{} days", days)
+            } else {
+                format!("{} days and {} hours", days, hours)
+            }
         }
     }
 
@@ -403,14 +411,16 @@ impl App for MyApp {
                     ui.add(Label::new(RichText::heading(RichText::new("It looks like your optimisation will not be worth it, are you sure about data you enter?"))));
                 } else {
                     let x = TimeUnit::Days.to_hours(intersection.0, &self.conf_time_unit);
-                   let roi = Self::value_to_human_duration(x, false, &self.conf_time_unit);
+                    let roi = Self::value_to_human_duration(x, false, &self.conf_time_unit);
+                    let before = self.time_taken_per_day_in_hours(self.scale_number_of_day as f64, &self.before_taken_time_unit, self.before_taken_time).1;
+                    let after = self.time_taken_per_day_in_hours(self.scale_number_of_day as f64, &self.after_taken_time_unit, self.after_taken_time).1;
+                    let saved_hours = Self::value_to_human_duration(before - after, false, &self.conf_time_unit);
                     ui.horizontal_wrapped(|ui| {
                         ui.label("After");
                         ui.label(RichText::new(format!("{}", self.scale_number_of_day)).strong());
                         ui.label(RichText::new("days").strong());
                         ui.label("you would save");
-                        ui.label(RichText::new("20").strong()); // heuristic for unit
-                        ui.label(RichText::new("hours").strong()); // heuristic for unit
+                        ui.label(RichText::new(format!("{}", saved_hours)).strong());
                         ui.label("You will start to save time after");
                         ui.label(RichText::new(roi).strong());
                     });
