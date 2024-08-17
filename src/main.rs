@@ -425,7 +425,7 @@ impl App for MyApp {
                         ui.heading("After ");
                         ui.heading(RichText::new(format!("{} ", self.scale_number_of_day)).strong());
                         ui.heading(RichText::new("days ").strong());
-                        ui.heading("you would save ");
+                        ui.heading("you would have saved ");
                         ui.heading(RichText::new(format!("{}. ", saved_hours)).strong());
                         ui.heading("You will start to save time after ");
                         ui.heading(RichText::new(roi).strong());
