@@ -201,6 +201,9 @@ impl MyApp {
         // after line: y1 = a1x + b1 - o
         let o1 = self.time_taken_per_day_in_hours(after_invest_time, &self.after_taken_time_unit, self.after_taken_time).1;
         let b1 = invest_time_in_hours - o1;
+        if b1 <= 0.0 {
+            return (-1.0,-1.0)
+        }
         let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1;
         let x_intersection = (b1 - b) / (a - a1);
         // println!("a: {}, a1: {}, o: {}, o1: {}, b: {}, b1: {}, x_inter: {}, invest_time_in_hours: {}", a, a1, o, o1, b, b1, x_intersection, invest_time_in_hours);
