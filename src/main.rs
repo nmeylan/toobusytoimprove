@@ -1,3 +1,5 @@
+mod web;
+
 use std::mem;
 use eframe::{App, Frame, Renderer};
 use eframe::epaint::Color32;
@@ -12,17 +14,20 @@ const AFTER_COLOR: Color32 = Color32::from_rgb(75, 181, 67);
 const INVEST_COLOR: Color32 = Color32::from_rgb(6, 122, 199);
 
 fn main() {
-    let options = eframe::NativeOptions {
-        default_theme: Light,
-        persist_window: false,
-        renderer: Renderer::Glow,
-        viewport: eframe::egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1200.0, y: 900.0 }).with_maximized(true),
-        // viewport: egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1900.0, y: 1200.0 }).with_maximized(true),
-        ..eframe::NativeOptions::default()
-    };
-    eframe::run_native("Too busy to improve?", options, Box::new(|_cc| {
-        Ok(Box::new(MyApp::new()))
-    })).unwrap();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let options = eframe::NativeOptions {
+            default_theme: Light,
+            persist_window: false,
+            renderer: Renderer::Glow,
+            viewport: eframe::egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1200.0, y: 900.0 }).with_maximized(true),
+            // viewport: egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1900.0, y: 1200.0 }).with_maximized(true),
+            ..eframe::NativeOptions::default()
+        };
+        eframe::run_native("Too busy to improve?", options, Box::new(|_cc| {
+            Ok(Box::new(MyApp::new()))
+        })).unwrap();
+    }
 }
 
 #[derive(Eq, PartialEq)]
@@ -191,7 +196,7 @@ impl MyApp {
         // after line: y1 = a1x + b1 - o
         let o = self.time_taken_per_day_in_hours(after_invest_time, &self.after_taken_time_unit, self.after_taken_time).1;
         let b1 = invest_time_in_hours - o;
-        let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1 ;
+        let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1;
         let x_intersection = (b1 - b) / (a - a1);
         // println!("a: {}, a1: {}, aaa: {}, b: {}, b1: {}, x_inter: {}", a, a1, o, b, b1, x_intersection);
         (x_intersection, a * x_intersection + b)
@@ -399,7 +404,7 @@ impl App for MyApp {
                         ui.heading(RichText::new(roi).strong());
                     });
                     ui.horizontal_wrapped(|ui| {
-                       ui.heading("Increase projection time frame in configuration (⚙)")
+                        ui.heading("Increase projection time frame in configuration (⚙)")
                     });
                 } else {
                     let x = TimeUnit::Days.to_hours(intersection.0, &self.conf_time_unit);
