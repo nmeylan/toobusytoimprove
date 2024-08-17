@@ -193,12 +193,17 @@ impl MyApp {
         let x = 1.0;
         let b = 0.0;
         let a = self.time_taken_per_day_in_hours(x, &self.before_taken_time_unit, self.before_taken_time).1;
+        let o = self.time_taken_per_day_in_hours(after_invest_time, &self.before_taken_time_unit, self.before_taken_time).1;
+        if o >= invest_time_in_hours {
+            return (after_invest_time, invest_time_in_hours)
+        }
+
         // after line: y1 = a1x + b1 - o
-        let o = self.time_taken_per_day_in_hours(after_invest_time, &self.after_taken_time_unit, self.after_taken_time).1;
-        let b1 = invest_time_in_hours - o;
+        let o1 = self.time_taken_per_day_in_hours(after_invest_time, &self.after_taken_time_unit, self.after_taken_time).1;
+        let b1 = invest_time_in_hours - o1;
         let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1;
         let x_intersection = (b1 - b) / (a - a1);
-        // println!("a: {}, a1: {}, aaa: {}, b: {}, b1: {}, x_inter: {}", a, a1, o, b, b1, x_intersection);
+        // println!("a: {}, a1: {}, o: {}, o1: {}, b: {}, b1: {}, x_inter: {}, invest_time_in_hours: {}", a, a1, o, o1, b, b1, x_intersection, invest_time_in_hours);
         (x_intersection, a * x_intersection + b)
     }
 
