@@ -435,7 +435,7 @@ impl App for MyApp {
                         ui.heading("Too busy to improve? Congratulation, after ");
                         ui.heading(RichText::new(format!("{} ", self.scale_number_of_day)).strong());
                         ui.heading(RichText::new("days ").strong());
-                        ui.heading("you will waste ");
+                        ui.heading("you would have wasted ");
                         ui.heading(RichText::new(format!("{}. ", saved_hours)).strong());
                     });
                 }
