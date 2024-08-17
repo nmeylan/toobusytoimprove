@@ -188,9 +188,10 @@ impl MyApp {
             .name("invested time")
     }
     fn after_line(&self, invest_time_in_hours: f64, after_start_at_day: f64) -> Line {
+        let o = self.time_taken_per_day_in_hours(after_start_at_day, &self.after_taken_time_unit, self.after_taken_time).1;
         Line::new(PlotPoints::from_parametric_callback(|t| {
             let res = self.time_taken_per_day_in_hours(t, &self.after_taken_time_unit, self.after_taken_time);
-            (t, invest_time_in_hours + res.1)
+            (t, invest_time_in_hours + res.1 - o)
         },
                                                        (after_start_at_day)..=(after_start_at_day + self.scale_number_of_day as f64),
                                                        self.scale_number_of_day,
@@ -206,15 +207,16 @@ impl MyApp {
     }
 
     fn intersection(&self, invest_time_in_hours: f64, after_invest_time: f64) -> (f64, f64) {
-        // La formule est bonne, mais à cause de la ligne 192: t - after_start_at_day, il y a un décallage, sans le - after_start_at_day c'est bon
+        // before line: y = ax + b
         let x = 1.0;
         let b = 0.0;
         let a = self.time_taken_per_day_in_hours(x, &self.before_taken_time_unit, self.before_taken_time).1;
-
-        let b1 = invest_time_in_hours;
-        let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1;
+        // after line: y1 = a1x + b1 - o
+        let o = self.time_taken_per_day_in_hours(after_invest_time, &self.after_taken_time_unit, self.after_taken_time).1;
+        let b1 = invest_time_in_hours - o;
+        let a1 = self.time_taken_per_day_in_hours(x, &self.after_taken_time_unit, self.after_taken_time).1 ;
         let x_intersection = (b1 - b) / (a - a1);
-        // println!("a: {}, a1: {}, b: {}, b1: {}, x_inter: {}", a, a1, b, b1, x_intersection);
+        // println!("a: {}, a1: {}, aaa: {}, b: {}, b1: {}, x_inter: {}", a, a1, o, b, b1, x_intersection);
         (x_intersection, a * x_intersection + b)
     }
 
