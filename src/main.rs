@@ -2,8 +2,8 @@ use std::mem;
 use eframe::{App, Frame, Renderer};
 use eframe::epaint::Color32;
 use eframe::Theme::Light;
-use egui::{Align, ComboBox, Context, DragValue, Id, Label, Layout, RichText, Stroke, TextEdit, TextStyle, Ui, Vec2, Vec2b};
-use egui_plot::{AxisHints, CoordinatesFormatter, Corner, Legend, Line, LineStyle, Plot, PlotMemory, PlotPoint, PlotPoints, PlotTransform, Points};
+use egui::{ComboBox, Context, DragValue, Id, Label, RichText, Stroke, Ui, Vec2};
+use egui_plot::{AxisHints, Corner, Legend, Line, LineStyle, Plot, PlotMemory, PlotPoint, PlotPoints, Points};
 
 
 const BACKGROUND: Color32 = Color32::from_rgb(106, 49, 252);
@@ -20,7 +20,7 @@ fn main() {
         // viewport: egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1900.0, y: 1200.0 }).with_maximized(true),
         ..eframe::NativeOptions::default()
     };
-    eframe::run_native("Too busy to improve", options, Box::new(|cc| {
+    eframe::run_native("Too busy to improve", options, Box::new(|_cc| {
         Ok(Box::new(MyApp::new()))
     })).unwrap();
 }
@@ -34,25 +34,6 @@ enum TimeUnit {
     Weeks,
     Months,
     Years,
-}
-
-#[derive(Eq, PartialEq)]
-enum GuesstimationLevel {
-    Good,
-    Mid,
-    Bad,
-    Random,
-}
-
-impl GuesstimationLevel {
-    pub fn as_text(&self) -> &str {
-        match self {
-            GuesstimationLevel::Good => "good",
-            GuesstimationLevel::Mid => "ok",
-            GuesstimationLevel::Bad => "bad",
-            GuesstimationLevel::Random => "random"
-        }
-    }
 }
 
 impl TimeUnit {
@@ -130,10 +111,8 @@ struct MyApp {
     invest_taken_time_unit: TimeUnit,
     repeat_count: usize,
     repeat_count_time_unit: TimeUnit,
-    y_axis_time_unit: TimeUnit,
     scale_number_of_day: usize,
     conf_time_unit: ConfTimeUnit,
-    guesstimation_level: GuesstimationLevel,
 }
 
 impl MyApp {
@@ -147,7 +126,6 @@ impl MyApp {
             invest_taken_time_unit: TimeUnit::Hours,
             repeat_count: 20,
             repeat_count_time_unit: TimeUnit::Hours,
-            y_axis_time_unit: TimeUnit::Hours,
             scale_number_of_day: 90,
 
             conf_time_unit: ConfTimeUnit {
@@ -155,7 +133,6 @@ impl MyApp {
                 number_of_day_per_week: 5,
                 number_of_day_per_month: 22,
             },
-            guesstimation_level: GuesstimationLevel::Mid,
         }
     }
 
@@ -295,7 +272,7 @@ impl MyApp {
 }
 
 impl App for MyApp {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         let invest_time_in_hours = self.invest_taken_time_unit.to_hours(self.invest_taken_time, &self.conf_time_unit);
         let after_invest_time = invest_time_in_hours / self.conf_time_unit.number_of_hours_per_day as f64;
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -303,12 +280,11 @@ impl App for MyApp {
                 .resizable(false)
                 .default_height(150.0)
                 .show_inside(ui, |ui| {
-                    let text_color = ui.style().visuals.text_color();
                     ui.style_mut().visuals.extreme_bg_color = BACKGROUND;
                     ui.style_mut().spacing.item_spacing = Vec2 { x: 0.0, y: 0.0 };
                     ui.style_mut().visuals.selection.stroke = Stroke::new(1.5, Color32::WHITE);
                     ui.style_mut().visuals.text_cursor.stroke = Stroke::new(1.5, Color32::WHITE);
-                    let (response_repeat_count, response_repeat_count_unit) = ui.horizontal_wrapped(|ui| {
+                    let (_response_repeat_count, _response_repeat_count_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text("I repeat "));
                         let text_edit_repeat_count = DragValue::new(&mut self.repeat_count).range(0.0..=10000.0).speed(1.0);
                         let response_repeat_count = styled_component(ui, |ui| { ui.add(text_edit_repeat_count) });
@@ -328,7 +304,7 @@ impl App for MyApp {
                         (response_repeat_count, response_repeat_count_unit)
                     }).inner;
                     ui.add_space(5.0);
-                    let (response_before_time, response_before_time_unit) = ui.horizontal_wrapped(|ui| {
+                    let (_response_before_time, _response_before_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text_with_color("It takes ", BEFORE_COLOR));
 
                         let text_edit_before_time = DragValue::new(&mut self.before_taken_time).range(0.0..=10000.0).speed(1.0);
@@ -347,7 +323,7 @@ impl App for MyApp {
                         (response_before_time, response_before_time_unit)
                     }).inner;
                     ui.add_space(5.0);
-                    let (response_after_time, response_after_time_unit) = ui.horizontal_wrapped(|ui| {
+                    let (_response_after_time, _response_after_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text_with_color("Optimizing/fixing", AFTER_COLOR));
                         ui.label(text(" the process would reduce this time to "));
 
@@ -365,11 +341,10 @@ impl App for MyApp {
                         (response_after_time, response_after_time_unit)
                     }).inner;
                     ui.add_space(5.0);
-                    let (response_invest_time, response_invest_time_unit) = ui.horizontal_wrapped(|ui| {
+                    let (_response_invest_time, _response_invest_time_unit) = ui.horizontal_wrapped(|ui| {
                         ui.label(text("For this I have to "));
                         ui.label(text_with_color("invest ", INVEST_COLOR));
-                        let mut text_edit_invest_time = DragValue::new(&mut self.invest_taken_time).range(0.0..=10000.0).speed(1.0);
-                        let response_invest_time = styled_component(ui, |ui| { ui.add(text_edit_invest_time) });
+                        let response_invest_time = styled_component(ui, |ui| { ui.add(DragValue::new(&mut self.invest_taken_time).range(0.0..=10000.0).speed(1.0)) });
                         ui.add_space(5.0);
                         let repeat_time_unit = ComboBox::new("invest_time_unit", "").selected_text(self.invest_taken_time_unit.plural());
                         let response_invest_time_unit = crate::styled_component(ui, |ui| {
@@ -437,10 +412,10 @@ impl App for MyApp {
             };
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let id = Id::new("plot");
-                let mut plot = Plot::new("plot").id(id)
+                let plot = Plot::new("plot").id(id)
                     .custom_x_axes(vec![AxisHints::new_y().label("Day")])
                     .label_formatter(label_fmt)
-                    .y_axis_formatter(|grid_mark, range| {
+                    .y_axis_formatter(|grid_mark, _range| {
                         if grid_mark.value <= 0.0 {
                             return String::new();
                         }
@@ -458,7 +433,7 @@ impl App for MyApp {
                     .show_grid(true)
                     ;
 
-                let mut response = plot.show(ui, |plot_ui| {
+                let _response = plot.show(ui, |plot_ui| {
                     plot_ui.line(self.before_line());
                     plot_ui.line(self.invest_time_line(invest_time_in_hours, after_invest_time));
                     plot_ui.line(self.after_line(invest_time_in_hours, after_invest_time));
