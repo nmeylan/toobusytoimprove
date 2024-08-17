@@ -20,7 +20,7 @@ fn main() {
         // viewport: egui::ViewportBuilder::default().with_inner_size(Vec2 { x: 1900.0, y: 1200.0 }).with_maximized(true),
         ..eframe::NativeOptions::default()
     };
-    eframe::run_native("Too busy to improve", options, Box::new(|_cc| {
+    eframe::run_native("Too busy to improve?", options, Box::new(|_cc| {
         Ok(Box::new(MyApp::new()))
     })).unwrap();
 }
@@ -170,7 +170,7 @@ impl MyApp {
             let res = self.time_taken_per_day_in_hours(t, &self.after_taken_time_unit, self.after_taken_time);
             (t, invest_time_in_hours + res.1 - o)
         },
-                                                       (after_start_at_day)..=(after_start_at_day + self.scale_number_of_day as f64),
+                                                       (after_start_at_day)..=(self.scale_number_of_day as f64),
                                                        self.scale_number_of_day,
         ))
             .color(AFTER_COLOR)
@@ -384,8 +384,23 @@ impl App for MyApp {
                 });
             let intersection = self.intersection(invest_time_in_hours, after_invest_time);
             egui::TopBottomPanel::bottom("bottom").show_inside(ui, |ui| {
-                if intersection.1 <= 0.0 || intersection.0 <= 0.0 {
+                if intersection.1 <= 0.0 || intersection.0 <= 0.0 || (self.after_taken_time == self.before_taken_time && self.after_taken_time_unit == self.before_taken_time_unit) {
                     ui.add(Label::new(RichText::heading(RichText::new("It looks like your optimisation will not be worth it, are you sure about data you enter?"))));
+                } else if (self.scale_number_of_day as f64) < intersection.0 {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.style_mut().spacing.item_spacing = Vec2 { x: 0.0, y: 0.0 };
+                        ui.heading("After ");
+                        ui.heading(RichText::new(format!("{} ", self.scale_number_of_day)).strong());
+                        ui.heading(RichText::new("days ").strong());
+                        ui.heading("you would not save time. ");
+                        ui.heading("You will only start to save time after ");
+                        let x = TimeUnit::Days.to_hours(intersection.0, &self.conf_time_unit);
+                        let roi = Self::value_to_human_duration(x, false, &self.conf_time_unit);
+                        ui.heading(RichText::new(roi).strong());
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                       ui.heading("Increase projection time frame in configuration (⚙)")
+                    });
                 } else {
                     let x = TimeUnit::Days.to_hours(intersection.0, &self.conf_time_unit);
                     let roi = Self::value_to_human_duration(x, false, &self.conf_time_unit);
@@ -393,13 +408,22 @@ impl App for MyApp {
                     let after = self.time_taken_per_day_in_hours(self.scale_number_of_day as f64, &self.after_taken_time_unit, self.after_taken_time).1;
                     let saved_hours = Self::value_to_human_duration(before - after, false, &self.conf_time_unit);
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("After");
-                        ui.label(RichText::new(format!("{}", self.scale_number_of_day)).strong());
-                        ui.label(RichText::new("days").strong());
-                        ui.label("you would save");
-                        ui.label(RichText::new(format!("{}", saved_hours)).strong());
-                        ui.label("You will start to save time after");
-                        ui.label(RichText::new(roi).strong());
+                        ui.style_mut().spacing.item_spacing = Vec2 { x: 0.0, y: 0.0 };
+                        ui.heading("After ");
+                        ui.heading(RichText::new(format!("{} ", self.scale_number_of_day)).strong());
+                        ui.heading(RichText::new("days ").strong());
+                        ui.heading("you would save ");
+                        ui.heading(RichText::new(format!("{}. ", saved_hours)).strong());
+                        ui.heading("You will start to save time after ");
+                        ui.heading(RichText::new(roi).strong());
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                        ui.style_mut().spacing.item_spacing = Vec2 { x: 0.0, y: 0.0 };
+                        ui.heading("Too busy to improve? Congratulation, after ");
+                        ui.heading(RichText::new(format!("{} ", self.scale_number_of_day)).strong());
+                        ui.heading(RichText::new("days ").strong());
+                        ui.heading("you will waste ");
+                        ui.heading(RichText::new(format!("{}. ", saved_hours)).strong());
                     });
                 }
             });
