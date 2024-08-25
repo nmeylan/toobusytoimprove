@@ -3,6 +3,6 @@ You want to know when you will start gaining time and how much if you optimize/f
 
 You want to demonstrate how many times you will waste if you continue with your broken system?
 
-[https://nmeylan.github.io/toobusytoimprove/web/](https://nmeylan.github.io/toobusytoimprove/web/)
+[https://toobusytoimprove.com/](https://toobusytoimprove.com/)
 
 ![](.github/img.png)
